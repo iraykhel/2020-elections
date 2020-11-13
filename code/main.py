@@ -25,10 +25,13 @@ class Elections:
         return state_codes
 
     def create_db(self):
+        #drop paremeter in the next line controls what we do if table already exists. If drop is true, table is dropped and recreated if already exists.
         self.db.create_table('results_2020',"id integer primary key autoincrement, county text, state text, biden, trump, total",drop=False)
         self.db.create_table('results_2016',
                              "id integer primary key autoincrement, county text, state text, clinton, trump, total",
-                             drop=True)
+                             drop=False)
+
+        #to get column names from the census csv, but I renamed them manually afterwards anyway
         dct = elections.get_census_quickfacts('iowa','obrien')
         fields = ['id integer primary key autoincrement','state text','county text']
         for field in dct:
@@ -97,6 +100,8 @@ class Elections:
 
 
     def read_in_2016_results(self):
+        #these are not final the final 2016 results, that repo needs an update https://github.com/tonmcg/US_County_Level_Election_Results_08-20/issues/18#issuecomment-726775771
+        #they also need some massaging in the databaseb to make sure county names match to 2020 and census
         reader = csv.reader(open('data/2016_US_County_Level_Presidential_Results.csv'))
         next(reader)
         for row in reader:
@@ -225,7 +230,7 @@ class Elections:
 
     def separate_sets(self):
         # control_set = ['vt','nd']
-        control_set = []
+        control_set = [] #I was going to have a geographic control set of Vermont and North Dakota, but it didn't seem necessary in the end
 
         test_set = [
             ('az','maricopa'),
@@ -261,11 +266,15 @@ class Elections:
         training_set_outcome_20 = []
         training_set_weights = []
 
+        #I renamed columns from census CSV to these so I can access them in database manager easier
         self.features = feature_columns = ['Population_change_2010_2019','Under_5','Under_18','Over_65','Women','White','Black','Indian','Asian','Pacific','Hispanic','Veterans','Foreign_born','Houses','Owner_occupied','Rent','Building_permits','Households',
                           'People_per_household','Living_in_same_house_as_1_year_ago','Languages_spoken','Computer','Internet','High_school','Bachelors','Disabled_under_65','No_health_insurance_under_65','In_labor_force','In_labor_force_women',
                           'Sales_retail_per_capita','Commute','Median_household_income','Income','Poverty','Employment','Payroll','Employment_change_2017_2018','Population_density','Land_area']
 
+        #These columns are divided by population
         non_per_capita_columns = ['Veterans','Houses','Building_permits','Households','Employment','Payroll']
+
+        #Building permits are very often missing. I just set these to 0 if they are missing.
         potential_missing = ['Building_permits','Sales_retail_per_capita']
 
         skip_cnt = 0
@@ -353,30 +362,19 @@ class Elections:
     def cv(self,folds=5):
         kf = KFold(folds, shuffle=True)
         Y = self.Y_training_20
-        # X = self.X_training
-        X = np.hstack((self.X_training,self.Y_training_16.reshape((len(self.Y_training_16),1))))
-        # X = self.Y_training_16.reshape((len(self.Y_training_16),1))
-        # s = QuantileTransformer(output_distribution='normal')
+        # X = self.X_training #use just census for training
+        X = np.hstack((self.X_training,self.Y_training_16.reshape((len(self.Y_training_16),1)))) #use census + Hillary 2016
+        # X = self.Y_training_16.reshape((len(self.Y_training_16),1)) #use just Hillary 2016
 
 
 
         Y_pred_all = np.zeros(len(Y))
         for fold_idx, (train_index,test_index) in enumerate(kf.split(self.X_training,Y)):
-            print("Fold",fold_idx)
-            X_trainval, X_test = X[train_index], X[test_index]
-            Y_trainval, Y_test = Y[train_index], Y[test_index]
-            weights_trainval = self.weights_training[train_index]
+            print("Fold",fold_idx+1,'out of',folds)
+            X_train, X_test = X[train_index], X[test_index]
+            Y_train, Y_test = Y[train_index], Y[test_index]
+            weights_train = self.weights_training[train_index]
 
-            X_train, X_val, Y_train, Y_val, weights_train, weights_val = train_test_split(X_trainval, Y_trainval, weights_trainval, test_size=0.33, shuffle=True)
-            # X_train = s.fit_transform(X_train)
-            # X_val = s.transform(X_val)
-            # X_test = s.transform(X_test)
-
-            # trainer.fit(X_train,Y_train,sample_weight=weights_train,eval_set=[(X_val,Y_val)], sample_weight_eval_set=[weights_val], early_stopping_rounds=10, verbose=1, eval_metric='mae')
-
-            X_train = np.vstack((X_train,X_val))
-            Y_train = np.hstack((Y_train, Y_val))
-            weights_train = np.hstack((weights_train, weights_val))
             self.trainer.fit(X_train,Y_train,sample_weight=weights_train,verbose=1)
 
             Y_pred = self.trainer.predict(X_test)
@@ -390,13 +388,14 @@ class Elections:
 
     def train(self):
         Y = self.Y_training_20
-        X = np.hstack((self.X_training, self.Y_training_16.reshape((len(self.Y_training_16), 1))))
-        # X = self.X_training
-        # X = self.Y_training_16.reshape((len(self.Y_training_16), 1))
+        X = np.hstack((self.X_training, self.Y_training_16.reshape((len(self.Y_training_16), 1)))) #census + Hillary 16
+        # X = self.X_training #just census
+        # X = self.Y_training_16.reshape((len(self.Y_training_16), 1)) #just Hillary
         W = self.weights_training
         print(X.shape)
         self.trainer.fit(X, Y, sample_weight=W, verbose=1)
 
+        # If you want to print feature in order of their usefulness to xgboost
         # self.features.append('2016_outcome')
         # sorted_features = np.argsort(self.trainer.feature_importances_)[::-1]
         # for idx in sorted_features[:10]:
@@ -411,21 +410,18 @@ class Elections:
         # X = self.Y_test_16.reshape((len(self.Y_test_16), 1))
         Y_pred = self.trainer.predict(X)
         Y_true = self.Y_test_20
-        test_data = []
         for idx, entry in enumerate(self.test_set):
             print(entry[0],entry[1],round(Y_pred[idx],2),round(Y_true[idx],2))
-        #     test_data.append({'location':entry,'prediction':Y_pred[idx],'actual':Y_true[idx]})
-        # pprint.pprint(test_data)
+
 
 
 
 
 
 elections = Elections()
-# elections.download_2020_results()
-# exit(0)
-# elections.get_census_quickfacts('new york','wayne')
 # elections.create_db()
+# elections.download_2020_results()
+
 
 # elections.get_census_all()
 
