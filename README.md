@@ -20,9 +20,9 @@ wi |  milwaukee |  0.69 |  0.69
 pa |  delaware |  0.63 |  0.63
 
 Technicals:  
-Model MAE, cross-validated: 0.015  
-Data sources: page scraped decisiondeskhq.com, page scraped https://www.census.gov/quickfacts, https://github.com/tonmcg/US_County_Level_Election_Results_08-20
-Model: xgb.XGBRegressor(objective='reg:logistic', n_estimators=300, learning_rate=0.1, max_depth=6)  
+Model mean absolute error, cross-validated: 0.015  
+Data sources: page scraped decisiondeskhq.com, page scraped https://www.census.gov/quickfacts, https://github.com/tonmcg/US_County_Level_Election_Results_08-20   
+Regressor: xgb.XGBRegressor(objective='reg:logistic', n_estimators=300, learning_rate=0.1, max_depth=6)  
 Hyper-parameters tuned on predicting 2016 Hillary's results on census data only.  
 Samples weighted by population during training  
 Has 3090 training instances, uses 40 features. Some counties are missing from the training data because they're missing census data.   
