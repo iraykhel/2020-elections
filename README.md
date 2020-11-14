@@ -22,6 +22,7 @@ pa |  delaware |  0.63 |  0.63
 Technicals:  
 Model mean absolute error, cross-validated: 0.015  
 Data sources: page scraped decisiondeskhq.com, page scraped https://www.census.gov/quickfacts, https://github.com/tonmcg/US_County_Level_Election_Results_08-20   
+SQLite database with census and results is in data/  
 Regressor: xgb.XGBRegressor(objective='reg:logistic', n_estimators=300, learning_rate=0.1, max_depth=6)  
 Hyper-parameters tuned on predicting 2016 Hillary's results on census data only.  
 Samples weighted by population during training  
