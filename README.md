@@ -18,7 +18,9 @@ pa |  philadelphia |  0.85 |  0.81
 wi |  dane |  0.75 |  0.76
 wi |  milwaukee |  0.69 |  0.69
 pa |  delaware |  0.63 |  0.63
-
+  
+Since predictions are very close to the reported result, the likely conclusion is that no fraud has occured during vote counting  
+  
 Technicals:  
 Model mean absolute error, cross-validated: 0.015  
 Data sources: page scraped decisiondeskhq.com, page scraped https://www.census.gov/quickfacts, https://github.com/tonmcg/US_County_Level_Election_Results_08-20   
